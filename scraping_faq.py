@@ -10,10 +10,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver import Firefox
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
 
 STATE_N_FT = ['Kelantan','Pahang','Kedah','Sabah','Terengganu','Malacca','Negeri Sembilan','Perak','Perlis', 'Kuala Lumpur','Putrajaya','Labuan']
 QUERY = ['Why is *place* popular?',
@@ -39,11 +42,18 @@ QUERY = ['Why is *place* popular?',
 'How do I get from *stateft* to *place*?']
 
 # Selenium Scraping setup
-options = webdriver.ChromeOptions()
+# options = webdriver.ChromeOptions()
+# options.add_argument('--ignore-certificate-errors')
+# options.add_argument('--incognito')
+# # options.add_argument('--headless')
+# driver = webdriver.Chrome("C:\PythonDevelopment\chromedriver", chrome_options=options)
+
+options = Options()
+options.set_preference("browser.privatebrowsing.autostart", True)
 options.add_argument('--ignore-certificate-errors')
-options.add_argument('--incognito')
 # options.add_argument('--headless')
-driver = webdriver.Chrome("C:\PythonDevelopment\chromedriver", chrome_options=options)
+service = Service(r"C:\Users\666\Downloads\FirefoxDriver.exe")
+driver = Firefox(service=service, options=options)
 
 faqs_list = []
 
@@ -56,24 +66,31 @@ def append_to_faqs_list(faq_dict):
         faqs_list.append(faq_dict)
 
 def expand_faq(find_faq_elements_func):            
-    elements_to_expand = find_faq_elements_func()
-    # print(len(elements_to_expand))
-    for element in elements_to_expand:                
-        webdriver.ActionChains(driver).move_to_element(element).click(element).perform()
-        time.sleep(0.5)
-        print('expand element')
-        # element.click()
-    time.sleep(2)
-    # print(len(find_faq_elements_func()))
+    elements_to_expand = find_faq_elements_func()    
+    print(f'elements to expand:: {elements_to_expand}')
+
+    if elements_to_expand:
+        # print(len(elements_to_expand))
+        for element in elements_to_expand:                
+            # try:
+                webdriver.ActionChains(driver).move_to_element(element).click(element).perform()
+                time.sleep(0.5)
+                print('expand element')
+                # element.click()
+            # except:        
+            #     print('whats wrong')
+                time.sleep(2)    
+        return True
+    else:
+        return False
+
 
 def find_faq_elements():
-    # try:        
-    return WebDriverWait(driver, 8).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[jsname="Cpkphb"]')))                        
-    # except TimeoutException:
-    #     print("Loading took too much time!")
-    #     # find_faq_elements()
-    # finally:
-    #     print("Page is ready!")    
+    try:        
+        return WebDriverWait(driver, 8).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[jsname="Cpkphb"]')))                                    
+    except TimeoutException or NoSuchElementException:
+        print("Loading took too much time!")
+        return None
 
 def get_faqs_dict(question,root_element):    
     print(question)
@@ -105,21 +122,25 @@ def get_faqs_dict(question,root_element):
 
 def scaping_other_faqs():
     # click to expand the faq so that generate more faq
-    expand_faq(find_faq_elements) 
-    print('finished expand element')   
-    
-    faqs_elements = get_page_source().select('div[jsname="Cpkphb"]') # people also asked, each element    
-    print(f'faqs elements: {len(faqs_elements)}')
-    for faqs_element in faqs_elements:       
-        question_element = faqs_element.select_one('div[jsname="Cpkphb"] div.iDjcJe span') # question        
-        question = html.unescape(question_element.text) if question_element else ''        
-        faq_dict = get_faqs_dict(question, faqs_element)         
-        append_to_faqs_list(faq_dict)
+    is_other_faq_exist = expand_faq(find_faq_elements) 
+    if is_other_faq_exist:
+        print('finished expand element')   
+        
+        faqs_elements = get_page_source().select('div[jsname="Cpkphb"]') # people also asked, each element    
+        print(f'faqs elements: {len(faqs_elements)}')
+        for faqs_element in faqs_elements:       
+            question_element = faqs_element.select_one('div[jsname="Cpkphb"] div.iDjcJe span') # question        
+            question = html.unescape(question_element.text) if question_element else ''        
+            faq_dict = get_faqs_dict(question, faqs_element)         
+            append_to_faqs_list(faq_dict)    
 
 def scraping_faqs(query):        
-    driver.get(f"https://www.google.com.my/search?q={query}&")
+    driver.get(f"https://www.google.com.my/search?q={query}&")        
 
     page_source = get_page_source() 
+
+    if page_source.select_one('div#recaptcha'):
+        raise KeyboardInterrupt('recaptcha catached')
 
     try:
         suggested_ans_element = page_source.select_one('div.V3FYCf')    
@@ -154,7 +175,7 @@ try:
                     try:
                         scraping_faqs(replaced_query2)
                     except:
-                        print(f'cant fetch this query: {replaced_query2}')
+                        print(f'cant fetch this query2: {replaced_query2}')
                         with open("index_stopped.txt", "w") as f:
                             f.write(f'{query_index+query_index_stopped},{place_index+place_index_stopped}')
                         raise KeyboardInterrupt('Manual Interrupt for scraping faq 2')
@@ -179,18 +200,3 @@ try:
     faqs_df.to_csv('faqs.csv', mode='a', index=False)
 except:
     print(faqs_list)
-
-# for query in QUERY:        
-#     for place_dict in places_dict_list:
-#         query = query.replace('*place*',place_dict['place'])
-#         if re.search('\*stateft\*',query):
-#             print('searched STATE AND FT.........')
-#             for state_n_ft in STATE_N_FT:
-#                 query.replace('*stateft*',state_n_ft)
-#                 print(query)
-#                 # scraping_faqs(query)
-#         else:
-#             print(query)
-#             # scraping_faqs(query)
-
-#         print(len(faqs_list))

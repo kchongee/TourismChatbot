@@ -5,15 +5,18 @@ import re
 import time 
 
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import TimeoutException
+# from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver import Firefox
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
 
 
 # Test Pandas
@@ -42,11 +45,24 @@ from selenium.common.exceptions import TimeoutException
 #     finally:
 #         print("Page is ready!")
 
-options = webdriver.ChromeOptions()
-options.add_argument('--ignore-certificate-errors')
-options.add_argument('--incognito')
+# Chrome driver
+# options = webdriver.ChromeOptions()
+# options.add_argument('--ignore-certificate-errors')
+# options.add_argument('--incognito')
 # options.add_argument('--headless')
-driver = webdriver.Chrome("C:\PythonDevelopment\chromedriver", chrome_options=options)
+# driver = webdriver.Chrome("C:\PythonDevelopment\chromedriver", chrome_options=options)
+
+# Firefox driver
+options = Options()
+# options.set_preference("general.useragent.override", user_agent)
+# options.set_preference("dom.webnotifications.serviceworker.enabled", False)
+# options.set_preference("dom.webnotifications.enabled", False)
+options.set_preference("browser.privatebrowsing.autostart", True)
+# options.add_argument('--ignore-certificate-errors')
+# options.add_argument('--headless')
+service = Service(r"C:\Users\666\Downloads\FirefoxDriver.exe")
+driver = Firefox(service=service, options=options)
+
 driver.get(f"https://www.google.com.my/search?q=Which part of Malaysia is the best?&")    
 
 # input = driver.find_element(By.CSS_SELECTOR, 'input.gLFyf')
