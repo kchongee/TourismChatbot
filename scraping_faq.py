@@ -42,99 +42,143 @@ QUERY = ['Why is *place* popular?',
 options = webdriver.ChromeOptions()
 options.add_argument('--ignore-certificate-errors')
 options.add_argument('--incognito')
-options.add_argument('--headless')
+# options.add_argument('--headless')
 driver = webdriver.Chrome("C:\PythonDevelopment\chromedriver", chrome_options=options)
 
 faqs_list = []
+
+def get_page_source():
+    # parse whole page source to use BeautifulSoup to scrape    
+    return BeautifulSoup(driver.page_source,'lxml')
+
+def append_to_faqs_list(faq_dict):
+    if faq_dict:
+        faqs_list.append(faq_dict)
 
 def expand_faq(find_faq_elements_func):            
     elements_to_expand = find_faq_elements_func()
     # print(len(elements_to_expand))
     for element in elements_to_expand:                
         webdriver.ActionChains(driver).move_to_element(element).click(element).perform()
+        time.sleep(0.5)
+        print('expand element')
         # element.click()
     time.sleep(2)
     # print(len(find_faq_elements_func()))
 
 def find_faq_elements():
-    try:        
-        return WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[jsname="Cpkphb"]')))                        
-    except TimeoutException:
-        print("Loading took too much time!")
-        find_faq_elements()
-    finally:
-        print("Page is ready!")    
+    # try:        
+    return WebDriverWait(driver, 8).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'div[jsname="Cpkphb"]')))                        
+    # except TimeoutException:
+    #     print("Loading took too much time!")
+    #     # find_faq_elements()
+    # finally:
+    #     print("Page is ready!")    
 
 def get_faqs_dict(question,root_element):    
     print(question)
-    link_element = root_element.select_one('div.yuRUbf a') or root_element.select_one('div.g div.yuRUbf a') # link    
-    title_element = link_element.select_one('h3') # title
-    full_answer_element = root_element.select_one('div.di3YZe') or root_element.select_one('span.hgKElc') # full answer
-    short_answer_element = full_answer_element.select_one('b') # short answer
-    answer_list_elements = root_element.select('div.di3YZe li') # answer in list
+    try:
+        link_element = root_element.select_one('div.yuRUbf a') or root_element.select_one('div.g div.yuRUbf a') # link    
+        title_element = link_element.select_one('h3') # title
+        full_answer_element = root_element.select_one('div.di3YZe') or root_element.select_one('span.hgKElc') # full answer
+        short_answer_element = full_answer_element.select_one('b') # short answer
+        answer_list_elements = root_element.select('div.di3YZe li') # answer in list
 
-    question = question
-    link = link_element['href'] if link_element else ''
-    title = html.unescape(title_element.text) if title_element else ''
-    full_answer = html.unescape(full_answer_element.text) if full_answer_element else ''
-    short_answer = html.unescape(short_answer_element.text) if short_answer_element else ''  
-    short_answer = short_answer[0].upper()+short_answer[1:] if short_answer else short_answer
-    answer_list = ', '.join([html.unescape(item.text).split('.')[0] for item in answer_list_elements])
+        question = question
+        link = link_element['href'] if link_element else ''
+        title = html.unescape(title_element.text) if title_element else ''
+        full_answer = html.unescape(full_answer_element.text) if full_answer_element else ''
+        short_answer = html.unescape(short_answer_element.text) if short_answer_element else ''  
+        short_answer = short_answer[0].upper()+short_answer[1:] if short_answer else short_answer
+        answer_list = ', '.join([html.unescape(item.text).split('.')[0] for item in answer_list_elements])
+        next_line = '\n'
+        faq_dict = {
+            'question': question,
+            'link': link,
+            'title': title,
+            'answer': f'{short_answer + ". "+next_line if short_answer else ""} {answer_list+" ..." if answer_list else full_answer}'
+        }    
 
-    faq_dict = {
-        'question': question,
-        'link': link,
-        'title': title,
-        'answer': f'{short_answer}. \n {answer_list+" ..." if answer_list else full_answer}'
-    }    
+        return faq_dict 
+    except:
+        print('cant get faqs dict')
 
-    return faq_dict 
-
-def scaping_other_faqs(soup):
+def scaping_other_faqs():
     # click to expand the faq so that generate more faq
-    expand_faq(find_faq_elements)    
+    expand_faq(find_faq_elements) 
+    print('finished expand element')   
     
-    faqs_elements = soup.select('div[jsname="Cpkphb"]') # people also asked, each element    
+    faqs_elements = get_page_source().select('div[jsname="Cpkphb"]') # people also asked, each element    
+    print(f'faqs elements: {len(faqs_elements)}')
     for faqs_element in faqs_elements:       
         question_element = faqs_element.select_one('div[jsname="Cpkphb"] div.iDjcJe span') # question        
         question = html.unescape(question_element.text) if question_element else ''        
         faq_dict = get_faqs_dict(question, faqs_element)         
-        faqs_list.append(faq_dict)
+        append_to_faqs_list(faq_dict)
 
 def scraping_faqs(query):        
     driver.get(f"https://www.google.com.my/search?q={query}&")
 
-    # parse whole page source to use BeautifulSoup to scrape
-    page_source = driver.page_source
-    soup = BeautifulSoup(page_source,'lxml') 
+    page_source = get_page_source() 
 
     try:
-        suggested_ans_element = soup.select_one('div.V3FYCf')    
+        suggested_ans_element = page_source.select_one('div.V3FYCf')    
         faq_dict = get_faqs_dict(query, suggested_ans_element)
-        faqs_list.append(faq_dict)
+        append_to_faqs_list(faq_dict)
     except:
         print('dont have any suggested answer')
 
-    scaping_other_faqs(soup)
+    scaping_other_faqs()
     
 
 places_df = pd.read_csv('tourist_places.csv').fillna('')
 places_dict_list = places_df.to_dict('records')
+query_index_stopped = 0
+place_index_stopped = 0
+with open('index_stopped.txt', 'r') as f:
+    txt = f.read()
+    if txt:
+        list = txt.split(',')
+        query_index_stopped = int(list[0])
+        place_index_stopped = int(list[1])
 
-for query in QUERY:       
-    for place_dict in places_dict_list:
-        replaced_query = query.replace('*place*',place_dict['place'])        
-        if re.search('\*stateft\*',query):
-            # print('searched STATE AND FT.........')
-            for state_n_ft in STATE_N_FT:
-                replaced_query2 = replaced_query.replace('*stateft*',state_n_ft)
-                # print(replaced_query2)
-                scraping_faqs(replaced_query2)
-        else:
-            # print(replaced_query)
-            scraping_faqs(replaced_query)    
-        # print(faqs_list)
-        print(len(faqs_list))
+try:
+    for query_index, query  in enumerate(QUERY[query_index_stopped:]):    
+        for place_index, place_dict in enumerate(places_dict_list[place_index_stopped:]):
+            replaced_query = query.replace('*place*',place_dict['place'])            
+            if re.search('\*stateft\*',query):
+                # print('searched STATE AND FT.........')
+                for state_n_ft in STATE_N_FT:
+                    replaced_query2 = replaced_query.replace('*stateft*',state_n_ft)
+                    # print(replaced_query2)
+                    try:
+                        scraping_faqs(replaced_query2)
+                    except:
+                        print(f'cant fetch this query: {replaced_query2}')
+                        with open("index_stopped.txt", "w") as f:
+                            f.write(f'{query_index+query_index_stopped},{place_index+place_index_stopped}')
+                        raise KeyboardInterrupt('Manual Interrupt for scraping faq 2')
+            else:
+                try:
+                    # print(replaced_query)
+                    scraping_faqs(replaced_query)                            
+                except:
+                    print(f'cant fetch this query: {replaced_query}')
+                    with open("index_stopped.txt", "w") as f:
+                        f.write(f'{query_index+query_index_stopped},{place_index+place_index_stopped}')
+                    raise KeyboardInterrupt('Manual Interrupt for scraping faq 1')
+            # print(faqs_list)
+            print(len(faqs_list))
+except KeyboardInterrupt:
+    print('KeyboardInterrupt')
+    
+
+try:
+    faqs_df = pd.DataFrame(faqs_list)
+    print(faqs_df)
+    faqs_df.to_csv('faqs.csv', mode='a', index=False)
+except:
+    print(faqs_list)
 
 # for query in QUERY:        
 #     for place_dict in places_dict_list:
